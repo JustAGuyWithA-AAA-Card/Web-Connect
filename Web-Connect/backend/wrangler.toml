@@ -1,0 +1,7 @@
+name = "web-connect"
+main = "backend/worker.js"
+compatibility_date = "2025-10-21"
+
+kv_namespaces = [
+  { binding = "USERS", id = "your-kv-id" }
+]
