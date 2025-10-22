@@ -1,0 +1,12 @@
+name = "web-connect-worker"
+compatibility_date = "2025-10-21"
+
+[vars]
+# nothing here; secrets injected via Cloudflare dashboard
+
+# Bind KV namespaces (create these in Cloudflare > Workers KV)
+kv_namespaces = [
+  { binding = "USERS_KV", id = "7ce442918f0241198ce458d451ba1d0f" },
+  { binding = "SESSIONS_KV", id = "9ed7fc983e2f494e8a4fb158f8790a69" },
+  { binding = "MESSAGES_KV", id = "403caaa62b454769b3eb087b643bfc54" }
+]
