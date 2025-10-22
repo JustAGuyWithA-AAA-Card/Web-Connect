@@ -1,85 +1,70 @@
-// frontend/js/auth.js
-// exports: initAuth, isLoggedIn, logout, getToken
+const apiBase = "https://your-worker-name.workers.dev/api"; // update if needed
 
-let token = localStorage.getItem('wc_token') || null;
-let username = localStorage.getItem('wc_user') || null;
+async function registerUser() {
+  const username = document.querySelector("#register-username").value.trim();
+  const password = document.querySelector("#register-password").value.trim();
 
-export async function initAuth(){
-  // could refresh token here if we had refresh tokens
-  return;
-}
+  if (!username || !password) return showStatus("Please fill all fields", "error");
 
-export function isLoggedIn(){ return !!token; }
-export function getToken(){ return token; }
-
-export function logout(){
-  token = null; username = null;
-  localStorage.removeItem('wc_token');
-  localStorage.removeItem('wc_user');
-}
-
-async function api(path, body){
-  const res = await fetch(`/api/${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(token?{ 'Authorization': 'Bearer ' + token }: {}) },
-    body: JSON.stringify(body || {})
+  const res = await fetch(`${apiBase}/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
   });
-  return res.json();
+
+  const data = await res.json();
+  if (res.ok) {
+    showStatus("Registration successful!", "success");
+  } else {
+    showStatus(data.error || "Error during registration", "error");
+  }
 }
 
-// render auth view
-export async function render(){
-  const root = document.createElement('div');
-  root.className = 'container';
-  root.innerHTML = `
-    <div class="card" style="max-width:520px;margin:0 auto">
-      <h2>Web-Connect — Login</h2>
-      <div style="margin:12px 0;">
-        <input id="wc_user" placeholder="username/email" style="width:100%;padding:10px;border-radius:8px;margin-bottom:8px"/>
-        <input id="wc_pass" placeholder="password" type="password" style="width:100%;padding:10px;border-radius:8px;margin-bottom:8px"/>
-        <div style="display:flex;gap:8px">
-          <button id="wc_login" class="btn">Login</button>
-          <button id="wc_register" class="btn" style="background:#10b981">Register</button>
-        </div>
-        <div id="wc_msg" style="margin-top:8px;color:var(--muted)"></div>
-      </div>
-    </div>
-  `;
-  const inpUser = root.querySelector('#wc_user');
-  const inpPass = root.querySelector('#wc_pass');
-  const btnLogin = root.querySelector('#wc_login');
-  const btnReg = root.querySelector('#wc_register');
-  const msg = root.querySelector('#wc_msg');
+async function loginUser() {
+  const username = document.querySelector("#login-username").value.trim();
+  const password = document.querySelector("#login-password").value.trim();
 
-  btnReg.onclick = async () => {
-    const u = inpUser.value.trim();
-    const p = inpPass.value;
-    if(!u || !p){ msg.textContent = 'enter username+password'; return; }
-    const res = await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
-    const j = await res.json();
-    if(j.success) { msg.textContent = 'registered — now login'; }
-    else msg.textContent = j.error || 'register failed';
-  };
+  if (!username || !password) return showStatus("Please fill all fields", "error");
 
-  btnLogin.onclick = async () => {
-    const u = inpUser.value.trim();
-    const p = inpPass.value;
-    if(!u || !p){ msg.textContent = 'enter username+password'; return; }
-    const res = await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
-    const j = await res.json();
-    if(j.token){
-      token = j.token;
-      username = u;
-      localStorage.setItem('wc_token', token);
-      localStorage.setItem('wc_user', username);
-      // navigate to dashboard
-      window.navigate('dashboard');
-    } else {
-      msg.textContent = j.error || 'login failed';
-    }
-  };
+  const res = await fetch(`${apiBase}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
 
-  return root;
+  const data = await res.json();
+  if (res.ok) {
+    localStorage.setItem("token", data.token);
+    showStatus("Login successful!", "success");
+  } else {
+    showStatus(data.error || "Login failed", "error");
+  }
 }
 
-export { render as renderAuth };
+async function fetchProfile() {
+  const token = localStorage.getItem("token");
+  if (!token) return showStatus("You are not logged in", "error");
+
+  const res = await fetch(`${apiBase}/profile`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await res.json();
+  if (res.ok) {
+    showStatus(`Welcome ${data.username}`, "success");
+  } else {
+    showStatus(data.error || "Session expired", "error");
+  }
+}
+
+// --- Small UI helper ---
+function showStatus(msg, type = "info") {
+  const el = document.querySelector("#status");
+  el.textContent = msg;
+  el.className = `status ${type}`;
+}
+
+// --- Button bindings ---
+document.querySelector("#register-btn")?.addEventListener("click", registerUser);
+document.querySelector("#login-btn")?.addEventListener("click", loginUser);
+document.querySelector("#profile-btn")?.addEventListener("click", fetchProfile);
