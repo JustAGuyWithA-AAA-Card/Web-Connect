@@ -2,61 +2,86 @@
 import { initAuth, isLoggedIn, logout } from './auth.js';
 
 const app = document.getElementById('app');
-const loadingScreen = document.getElementById('loading-screen');
-const progressBar = loadingScreen.querySelector('.progress > span');
 
-let loadingEnabled = JSON.parse(localStorage.getItem('wc_loading') || 'false');
+const LOADING_KEY = 'wc_loading_enabled';
+let loadingEnabled = JSON.parse(localStorage.getItem(LOADING_KEY) || 'false');
 
-function showLoading(){
-  if(!loadingEnabled) return;
-  loadingScreen.style.display = 'flex';
-  progressBar.style.width = '0%';
+function createShell() {
+  const shell = document.createElement('div');
+  shell.className = 'shell container';
+  shell.innerHTML = `
+    <div class="topbar">
+      <div class="brand"><strong>Web-Connect</strong></div>
+      <div id="topControls"></div>
+    </div>
+    <div id="viewArea"></div>
+    <div id="loadingOverlay" class="loading-overlay" style="display:none">
+      <div style="text-align:center">
+        <div class="spinner"></div>
+        <div class="progress"><span id="loadingBar"></span></div>
+        <div id="loadingText" style="margin-top:8px;color:var(--muted)">Loading...</div>
+      </div>
+    </div>
+  `;
+  return shell;
 }
-function setLoadingPct(p){ if(!loadingEnabled) return; progressBar.style.width = `${p}%`; }
-function hideLoading(){ if(!loadingEnabled) return; setTimeout(()=>loadingScreen.style.display='none',300); }
 
-async function lazyLoadView(name){
-  showLoading();
-  setLoadingPct(10);
-  let mod;
+function showLoading() {
+  if (!loadingEnabled) return;
+  const el = document.getElementById('loadingOverlay');
+  el.style.display = 'flex';
+  const bar = document.getElementById('loadingBar');
+  bar.style.width = '0%';
+  let p = 0, t = setInterval(()=> {
+    p = Math.min(100, p + Math.random()*25);
+    bar.style.width = p + '%';
+    if (p>=100) { clearInterval(t); setTimeout(()=>el.style.display='none', 300); }
+  }, 180);
+}
+function hideLoadingImmediate(){ const el=document.getElementById('loadingOverlay'); el.style.display='none'; }
+
+async function loadView(viewName, useLoading=true) {
+  if (useLoading && loadingEnabled) showLoading();
+  const viewArea = document.getElementById('viewArea');
+  viewArea.innerHTML = '';
   try {
-    mod = await import(`./${name}.js`);
-    setLoadingPct(60);
-  } catch(e){
-    console.error('Failed load',name,e);
-    hideLoading();
-    throw e;
+    const mod = await import(`./${viewName}.js`);
+    const node = await mod.render();
+    node.classList.add('view');
+    viewArea.appendChild(node);
+    requestAnimationFrame(()=> node.classList.add('active'));
+  } catch (err) {
+    viewArea.innerHTML = `<div class="card">Error loading view: ${err}</div>`;
+  } finally {
+    if (useLoading && !loadingEnabled) hideLoadingImmediate();
   }
-  const viewEl = await mod.render();
-  setLoadingPct(100);
-  hideLoading();
-  return viewEl;
 }
 
-async function navigate(name, data){
-  // simple client-side auth guard
-  if(!isLoggedIn() && name !== 'auth') {
-    name = 'auth';
-  }
-  // load view
-  const view = await lazyLoadView(name);
-  app.innerHTML = '';
-  app.appendChild(view);
-  requestAnimationFrame(()=>view.classList.add('active'));
-  // expose navigate globally for inline handlers
-  window.navigate = navigate;
-}
-
-async function boot(){
-  await initAuth(); // init local login state
-  const start = isLoggedIn() ? 'dashboard' : 'auth';
-  navigate(start);
-}
-
-// global logout
-window.wcLogout = () => {
-  logout();
-  navigate('auth');
+// router helpers
+window.navigate = (name) => {
+  if (!isLoggedIn() && name !== 'auth') name = 'auth';
+  loadView(name, true);
 };
+
+async function boot() {
+  // render shell
+  app.innerHTML = '';
+  const shell = createShell();
+  app.appendChild(shell);
+
+  // top controls: show login state if any
+  const top = document.getElementById('topControls');
+  const btn = document.createElement('button');
+  btn.textContent = 'Profile';
+  btn.onclick = async () => { if (!isLoggedIn()) navigate('auth'); else {
+    await loadView('dashboard');
+  } };
+  top.appendChild(btn);
+
+  // initial view
+  await initAuth();
+  if (isLoggedIn()) navigate('dashboard');
+  else navigate('auth');
+}
 
 boot();
